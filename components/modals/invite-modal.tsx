@@ -20,10 +20,9 @@ const InviteModal = () => {
   const { onOpen, isOpen, onClose, type, data } = useModal();
 
   const origin = useOrigin();
+  const isModalOpen = isOpen && type === "invite";
 
   const { server } = data;
-
-  const isModalOpen = isOpen && type === "invite";
 
   const inviteUrl = `${origin}/invite/${server?.inviteCode}`;
 
