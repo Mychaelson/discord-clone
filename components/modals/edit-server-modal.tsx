@@ -64,7 +64,7 @@ export const EditServerModal = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      await axios.post("/api/server", values);
+      await axios.patch(`/api/server/${server?.id}`, values);
 
       form.reset();
       router.refresh();
@@ -139,7 +139,7 @@ export const EditServerModal = () => {
 
             <DialogFooter className="bg-gray-100 px-6 py-4">
               <Button disabled={isLoading} variant={"primary"}>
-                Create
+                Save
               </Button>
             </DialogFooter>
           </form>
