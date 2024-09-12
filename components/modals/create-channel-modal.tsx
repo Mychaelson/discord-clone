@@ -1,96 +1,167 @@
+"use client";
+
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useModal } from "@/hooks/use-modal-store";
-import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import qs from "query-string";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, Copy, RefreshCcw } from "lucide-react";
-import { useOrigin } from "@/hooks/use-origin";
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
+import { useParams, useRouter } from "next/navigation";
+import { useModal } from "@/hooks/use-modal-store";
+import { ChannelType } from "@prisma/client";
 
-const InviteModal = () => {
-  const [copied, setCopied] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+const formSchema = z.object({
+  name: z
+    .string()
+    .min(1, {
+      message: "Channel name is required.",
+    })
+    .refine((name) => name !== "general", {
+      message: "Channel cannot be 'general'",
+    }),
+  type: z.nativeEnum(ChannelType),
+});
 
-  const { onOpen, isOpen, onClose, type, data } = useModal();
+const CreateChannelModal = () => {
+  const { isOpen, onClose, type } = useModal();
+  const router = useRouter();
 
-  const origin = useOrigin();
-  const isModalOpen = isOpen && type === "invite";
+  const isModalOpen = isOpen && type === "createChannel";
 
-  const { server } = data;
+  const params = useParams();
 
-  const inviteUrl = `${origin}/invite/${server?.inviteCode}`;
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: "",
+      type: ChannelType.TEXT,
+    },
+  });
 
-  const onCopy = () => {
-    navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
+  const isLoading = form.formState.isSubmitting;
 
-    setTimeout(() => {
-      setCopied(false);
-    }, 1000);
-  };
-
-  const onGenerateNew = async () => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      setIsLoading(true);
+      const url = qs.stringifyUrl({
+        url: "/api/channels",
+        query: {
+          serverId: params.serverId,
+        },
+      });
+      await axios.post(url, values);
 
-      const response = await axios.patch(
-        `/api/server/${server?.id}/invite-code`
-      );
-
-      onOpen("invite", { server: response.data });
-
-      setIsLoading(false);
+      form.reset();
+      router.refresh();
+      onClose();
     } catch (error) {
       console.log(error);
-      setIsLoading(false);
     }
   };
 
+  const handleClose = () => {
+    form.reset();
+    onClose();
+  };
+
   return (
-    <Dialog open={isModalOpen} onOpenChange={onClose}>
+    <Dialog open={isModalOpen} onOpenChange={handleClose}>
       <DialogContent className="bg-white text-black p-0 overflow-hidden">
         <DialogHeader className="pt-8 px-6">
           <DialogTitle className="text-2xl text-center font-bold">
-            Invite Friends
+            Create Channel
           </DialogTitle>
         </DialogHeader>
-        <div className="p-6">
-          <Label className="uppercase text-xs font-bold text-zinc-500 dark:text-secondary/70">
-            Server Invite Link
-          </Label>
-          <div className="flex items-center mt-2 gap-x-2">
-            <Input
-              readOnly
-              className="bg-zinc-300/50 border-0 focus-visible:ring-0 text-black focus-visible:ring-offset-0"
-              value={inviteUrl}
-            />
-            <Button disabled={isLoading} size={"icon"} onClick={onCopy}>
-              {copied ? (
-                <Check className="w-4 h-4" />
-              ) : (
-                <Copy className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-          <Button
-            disabled={isLoading}
-            variant="link"
-            size="sm"
-            className="text-xs text-zinc-500 mt-4"
-            onClick={onGenerateNew}
-          >
-            Generate a new link <RefreshCcw className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <div className="px-6 space-y-8">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="uppercase text-xs font-bold text-zinc-500 dark:text-secondary/70">
+                      Channel Name
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        disabled={isLoading}
+                        className="bg-zinc-300/50 border-0 focus-visible:ring-0 text-black focus-visible:ring-offset-0"
+                        placeholder="Enter channel name"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Channel Type</FormLabel>
+                    <Select
+                      disabled={isLoading}
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="bg-zinc-300/50 border-0 focus:ring-0 text-black ring-offset-0 focus:ring-offset-0 capitalize outline-none">
+                          <SelectValue placeholder="Select a channel type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(ChannelType).map((type) => (
+                          <SelectItem
+                            key={type}
+                            value={type}
+                            className="capitalize"
+                          >
+                            {type.toLowerCase()}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter className="bg-gray-100 px-6 py-4">
+              <Button disabled={isLoading} variant={"primary"}>
+                Create
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
 };
 
-export default InviteModal;
+export default CreateChannelModal;
